@@ -1,0 +1,9 @@
+def f(a:Int, b:Int):Int = { var c:Int;
+def g(a:Int, b:(Int)=>Int):Int = { b(a)
+}
+def h(c:Int):Int = {
+def g():Int = { c-b
+}
+g() }
+c = a+b;
+g(c,h) }
