@@ -152,6 +152,15 @@ def p_declaration(p):  # start symbol/rule
 def p_define_expression(p):
     """defdef : DEF ID LPAREN parmsopt RPAREN COLON type BECOMES LBRACE vardefsopt defdefsopt expras RBRACE"""
     # ?                                                                                 ^ We can define procedures inside procedures?
+    
+    # ! o The type of the child expras must be the same as the child type.
+    child_expras = p[12]
+    child_type = p[7]
+
+    if child_expras != child_type:
+        print(f"Error in defdef: expras is of type {child_expras}, but type is of type {child_type}")
+        return
+    
     procedure_name = p[2]
     procedure_return_type = p[7]
     procedure_parameters = p[4]
@@ -221,6 +230,7 @@ def p_type(p):
     """type : INT
             | LPAREN typesopt RPAREN ARROW type"""
 
+    # ? Maybe ARROW type means the return type of the parameter procedure?
     # Returns a string representing the type of the variable or procedure
     p[0] = p[1] if len(p) == 2 else p[5]
     return p
@@ -270,13 +280,44 @@ def p_def_opt(p):
 def p_expras(p):
     """expras : expra SEMI expras
               | expra"""    
-    pass
+    # • expras
+    # * o The type of an expras that derives expra SEMI expras is the type of the child expras.
+    # * o The type of an expras that derives expra is the type of the expra.
+
+    # Returns a string representing the type of the expression
+    p[0] = p[3] if len(p) == 4 else p[1]
+    return p
 
 
 def p_expra(p):
     """expra : ID BECOMES expr
              | expr"""
-    pass
+
+    # ! o When an expra derives ID BECOMES expr, the type of the ID and
+    # !     the expr must be the same, and the ID must denote a variable, not a
+    # !     procedure. An expra always derives either expr or ID BECOMES expr; in
+    # !     both cases, the type of the expra is the type of the child expr.
+
+    child_expr = p[3] if len(p) == 4 else p[1]
+
+    if len(p) == 4:
+        child_id = p[1]
+        var = found_variables.get(child_id)
+
+        if var:
+            if var.type != child_expr:
+                print(f"Error in expra: Variable {var.name} is of type {var.type}, but expr is of type {child_expr}")
+                return
+
+            
+        else:
+            print(f"Error in expra: Variable {child_id} not found")
+            return
+
+    # Returns a string representing the type of the expression
+    p[0] = child_expr
+
+    return p
 
 
 def p_expr(p):
@@ -285,9 +326,40 @@ def p_expr(p):
             | expr PLUS term
             | expr MINUS term"""
 
+    if len(p) == 2:
+        # * o The type of an expr that derives a term is the type of the term.
+        p[0] = p[1]
+
+    elif len(p) == 4:
+        # ! o When an expr derives expr PLUS term, or expr MINUS term, the types of
+        # !     the child expr and term must be Int, and the type of the
+        # !     resulting expr is Int.
+        child_expr = p[1]
+        child_term = p[3]
+
+        if child_expr != "Int":
+            print(f"Error in expr: Expected Int, got {child_expr} as child expr")
+            return
+
+        if child_term != "Int":
+            print(f"Error in expr: Expected Int, got {child_term} as child term")
+            return
+
+
+        p[0] = "Int"
+
+    else:
+        # ! o When an expr derives IF LPAREN test RPAREN LBRACE expras
+        # !     RBRACE ELSE LBRACE expras RBRACE, the type of the two exprs
+        # !     derived from test must be Int, the types of the two child exprasmust be
+        # !     the same, and the type of the resulting expr is the type of the two
+        # !     child expras.
+        p[0] = p[6]
+
 
     
-    pass
+    # Returns a string representing the type of the expression
+    return p
 
 
 def p_term(p):
@@ -295,7 +367,18 @@ def p_term(p):
             | term STAR factor
             | term SLASH factor
             | term PCT factor"""
-    pass
+
+    if len(p) == 2:
+        # * o The type of a term that derives a factor is the type of the factor.
+        p[0] = p[1]
+
+    else:
+        # ! o When a term derives term STAR factor, term SLASH factor, or term PCT
+        # !     factor, the types of the child term and factor must be Int, and the
+        # !     type of the resulting term is Int.
+        p[0] = "Int"
+
+    return p
 
 
 def p_factor(p):
@@ -303,7 +386,38 @@ def p_factor(p):
               | NUM
               | LPAREN expr RPAREN
               | factor LPAREN argsopt RPAREN"""
-    pass
+
+    if len(p) == 2:
+        # * o The type of a factor deriving an ID is the type of that ID.
+        # * o The type of a factor deriving NUM is Int.
+    
+        var = found_variables.get(p[1])
+
+        if p[1].isdigit():
+            p[0] = "Int"
+
+        elif var:
+            p[0] = var.type
+
+        else:
+            print(f"Error in factor: Variable {p[1]} not found")
+            return
+
+
+    elif len(p) == 4:
+        # * o The type of a factor deriving LPAREN expr RPAREN is the type of the expr.
+        p[0] = p[2]
+
+    else:
+        # ! o When a factor derives factor LPAREN argsopt RPAREN, the type of the
+        # !      child factor must be a procedure type whose parameter types are the
+        # !      same as the types of the exprs occurring as children of the args derived
+        # !      from the argsopt. The type of a factor deriving factor LPAREN argsopt
+        # !      RPAREN is the return type of the child factor.
+
+        pass # TODO
+
+    return p
 
 
 def p_test(p):
@@ -313,12 +427,16 @@ def p_test(p):
             | expr GE expr
             | expr GT expr
             | expr EQ expr"""
+
+    
     pass
 
 
 def p_argsopt(p):
     """argsopt : args
                | empty"""
+
+    # Returns a list of strings representing the types, or an empty list
     p[0] = p[1] if p[1] else []
     return p
 
